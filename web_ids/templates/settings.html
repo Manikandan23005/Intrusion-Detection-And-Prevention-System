@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8">
+    <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 mb-2">
+        Configuration Settings</h1>
+    <p class="text-slate-400">Manage alerting and protection mechanisms for the Intrusion Detection System.</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+    <!-- Email Configuration Box -->
+    <div class="glass p-8 rounded-2xl shadow-xl">
+        <div class="flex items-center gap-4 mb-6">
+            <div class="p-3 bg-indigo-500/20 rounded-xl">
+                <i class="fa-solid fa-envelope text-2xl text-indigo-400"></i>
+            </div>
+            <div>
+                <h2 class="text-xl font-bold text-white">Alert Notifications</h2>
+                <p class="text-sm text-slate-400">Automated email alerts for high-severity intrusions.</p>
+            </div>
+        </div>
+
+        <form method="POST" class="space-y-6">
+            <div>
+                <label for="notification_email" class="block text-sm font-medium text-slate-300 mb-2">Recipient Email
+                    Address (Where to send alerts)</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-at text-slate-500"></i>
+                    </div>
+                    <input type="email" name="notification_email" id="notification_email"
+                        class="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        placeholder="admin@example.com" value="{{ current_email }}" required>
+                </div>
+            </div>
+
+            <div>
+                <label for="smtp_email" class="block text-sm font-medium text-slate-300 mb-2">Sender Gmail Account (SMTP
+                    Login)</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-paper-plane text-slate-500"></i>
+                    </div>
+                    <input type="email" name="smtp_email" id="smtp_email"
+                        class="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        placeholder="ids.bot@gmail.com" value="{{ current_smtp_email }}" required>
+                </div>
+            </div>
+
+            <div>
+                <label for="smtp_password" class="block text-sm font-medium text-slate-300 mb-2">Sender App Password
+                    (16-char Google App Pwd)</label>
+                <div class="relative">
+                    <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                        <i class="fa-solid fa-key text-slate-500"></i>
+                    </div>
+                    <input type="password" name="smtp_password" id="smtp_password"
+                        class="block w-full pl-10 pr-3 py-3 border border-slate-600 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                        placeholder="••••••••••••••••" value="{{ current_smtp_password }}" required>
+                </div>
+                <p class="mt-2 text-xs text-slate-400">If using Gmail, standard passwords won't work. Generate an <a
+                        href="https://myaccount.google.com/apppasswords" target="_blank"
+                        class="text-indigo-400 hover:underline">App Password</a>.</p>
+            </div>
+
+            <button type="submit"
+                class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 transition-all cursor-pointer">
+                <i class="fa-solid fa-floppy-disk mr-2"></i> Save Configuration
+            </button>
+        </form>
+
+        <form method="POST" action="/test_email" class="mt-4 border-t border-white/10 pt-4">
+            <button type="submit"
+                class="w-full flex justify-center py-2 px-4 border border-indigo-500/50 rounded-lg shadow-sm text-sm font-bold text-indigo-300 bg-indigo-900/30 hover:bg-indigo-800/50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-all cursor-pointer">
+                <i class="fa-solid fa-paper-plane mr-2 mt-0.5"></i> Send Test Verification Email
+            </button>
+        </form>
+    </div>
+
+    <!-- Agent Setup Box -->
+    <div class="glass p-8 rounded-2xl shadow-xl flex flex-col justify-between">
+        <div>
+            <div class="flex items-center gap-4 mb-6">
+                <div class="p-3 bg-rose-500/20 rounded-xl">
+                    <i class="fa-solid fa-server text-2xl text-rose-400"></i>
+                </div>
+                <div>
+                    <h2 class="text-xl font-bold text-white">Agent Setup</h2>
+                    <p class="text-sm text-slate-400">Protect any Linux machine by installing the agent.</p>
+                </div>
+            </div>
+
+            <div class="space-y-4 text-sm mt-4">
+                <p class="text-slate-300">To monitor your laptops or remote servers, download and run the IDS Agent on those devices.</p>
+                
+                <div class="bg-black/30 p-4 rounded-lg font-mono text-emerald-400 overflow-x-auto">
+                    # 1. Download the agent via the button below<br>
+                    # 2. Open your terminal<br>
+                    # 3. Install requirements:<br>
+                    <span class="text-white">pip install requests watchdog</span><br>
+                    # 4. Run the agent script on the target machine:<br>
+                    <span class="text-white">sudo python3 ids_agent.py --server {{ request.host_url.rstrip('/') }} --api-key {{ api_key }}</span>
+                </div>
+                
+                <p class="text-xs text-slate-400 mt-2"><i class="fa-solid fa-triangle-exclamation text-amber-500"></i> Your unique API key is provided in the command above. Do not share it.</p>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-end">
+            <a href="/download_agent" class="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition flex items-center gap-2">
+                <i class="fa-solid fa-download"></i> Download Linux Agent
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

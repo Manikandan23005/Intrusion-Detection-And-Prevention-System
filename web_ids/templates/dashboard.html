@@ -1,0 +1,215 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-start">
+    <div>
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 mb-2">
+            Live
+            Incident Report</h1>
+        <p class="text-slate-400">Receiving and monitoring alerts from connected agents in real-time.</p>
+    </div>
+
+    <form action="/toggle_monitoring" method="POST" class="mt-2" id="monitorForm">
+        {% if monitoring_active %}
+        <button type="submit"
+            class="px-5 py-2.5 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 border border-rose-500/50 rounded-lg font-bold shadow-[0_0_15px_rgba(239,68,68,0.2)] transition flex items-center gap-2">
+            <i class="fa-solid fa-pause"></i> Pause Monitoring
+        </button>
+        {% else %}
+        <button type="button" onclick="checkAgentSetup({{ total_logs }})"
+            class="px-5 py-2.5 bg-emerald-500/20 hover:bg-emerald-500/40 text-emerald-400 border border-emerald-500/50 rounded-lg font-bold shadow-[0_0_15px_rgba(16,185,129,0.2)] transition flex items-center gap-2">
+            <i class="fa-solid fa-play"></i> Resume Monitoring
+        </button>
+        {% endif %}
+    </form>
+</div>
+
+<!-- Stats / Overview -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+    <div
+        class="glass p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-white/5 transition duration-300">
+        <i class="fa-solid fa-list-check text-4xl text-cyan-400 mb-3"></i>
+        <h3 class="text-slate-300 text-sm font-semibold uppercase tracking-wider">Total Events</h3>
+        <p class="text-4xl font-bold text-white mt-2">{{ stats.total }}</p>
+    </div>
+    <div
+        class="glass p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-white/5 transition duration-300 group border-l-4 border-l-rose-500">
+        <i class="fa-solid fa-triangle-exclamation text-4xl text-rose-500 mb-3 group-hover:scale-110 transition"></i>
+        <h3 class="text-slate-300 text-sm font-semibold uppercase tracking-wider">Critical Alerts</h3>
+        <p class="text-4xl font-bold text-white mt-2">
+            {{ stats.high }}
+        </p>
+    </div>
+    <div
+        class="glass p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-white/5 transition duration-300 group border-l-4 border-l-amber-500">
+        <i class="fa-solid fa-bolt text-4xl text-amber-500 mb-3 group-hover:scale-110 transition"></i>
+        <h3 class="text-slate-300 text-sm font-semibold uppercase tracking-wider">Warnings</h3>
+        <p class="text-4xl font-bold text-white mt-2">
+            {{ stats.medium }}
+        </p>
+    </div>
+    <div
+        class="glass p-6 rounded-2xl flex flex-col items-center justify-center hover:bg-white/5 transition duration-300 group {% if monitoring_active %}border-l-4 border-l-emerald-500{% else %}border-l-4 border-l-rose-500{% endif %}">
+        <i
+            class="fa-solid {% if monitoring_active %}fa-shield-virus text-emerald-500{% else %}fa-shield-halved text-rose-500{% endif %} text-4xl mb-3 group-hover:scale-110 transition"></i>
+        <h3 class="text-slate-300 text-sm font-semibold uppercase tracking-wider">Active Monitoring</h3>
+        {% if monitoring_active %}
+        <p class="text-2xl font-bold text-emerald-400 mt-2">Active</p>
+        {% else %}
+        <p class="text-2xl font-bold text-rose-400 mt-2">Paused</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Log Table -->
+<div class="glass rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+    <div class="p-6 border-b border-white/10 flex justify-between items-center">
+        <h2 class="text-xl font-semibold"><i class="fa-solid fa-clock-rotate-left mr-2"></i> Recent Logs</h2>
+        <div class="flex gap-4 items-center">
+            <form method="GET" action="/" class="flex gap-2">
+                <select name="severity" onchange="this.form.submit()"
+                    class="block w-40 pl-3 pr-8 py-2 border border-slate-600 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                    <option value="">All Severities</option>
+                    <option value="high" {% if severity=='high' %}selected{% endif %}>High</option>
+                    <option value="medium" {% if severity=='medium' %}selected{% endif %}>Medium</option>
+                    <option value="low" {% if severity=='low' %}selected{% endif %}>Low</option>
+                </select>
+            </form>
+            <div class="relative">
+                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <i class="fa-solid fa-search text-slate-500"></i>
+                </div>
+                <input type="text" id="logSearch" onkeyup="filterTable('logSearch', 'logTable')"
+                    class="block w-64 pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                    placeholder="Search logs...">
+            </div>
+            <button class="px-4 py-2 bg-indigo-600/30 hover:bg-indigo-500/50 text-indigo-300 rounded-lg transition"
+                onclick="window.location.reload()">
+                <i class="fa-solid fa-rotate-right mr-1"></i> Refresh
+            </button>
+        </div>
+    </div>
+
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse" id="logTable">
+            <thead>
+                <tr class="bg-black/20 text-slate-300 text-sm uppercase tracking-wider">
+                    <th class="p-4 font-medium">Time</th>
+                    <th class="p-4 font-medium">Severity</th>
+                    <th class="p-4 font-medium">Event Type</th>
+                    <th class="p-4 font-medium">Source IP</th>
+                    <th class="p-4 font-medium">Message Details</th>
+                    <th class="p-4 font-medium text-center">Action</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 font-mono text-sm">
+                {% for log in logs %}
+                <tr class="hover:bg-white/5 transition duration-150">
+                    <td class="p-4 text-slate-400">{{ log.timestamp }}</td>
+                    <td class="p-4">
+                        {% if log.severity == 'high' %}
+                        <span
+                            class="px-3 py-1 bg-red-500/20 text-red-400 border border-red-500/30 rounded-full font-bold shadow-[0_0_10px_rgba(239,68,68,0.2)]">
+                            <i class="fa-solid fa-skull"></i> HIGH
+                        </span>
+                        {% elif log.severity == 'medium' %}
+                        <span
+                            class="px-3 py-1 bg-yellow-500/20 text-yellow-500 border border-yellow-500/30 rounded-full font-bold">
+                            <i class="fa-solid fa-triangle-exclamation"></i> MED
+                        </span>
+                        {% else %}
+                        <span
+                            class="px-3 py-1 bg-blue-500/20 text-blue-400 border border-blue-500/30 rounded-full font-bold">
+                            <i class="fa-solid fa-info-circle"></i> LOW
+                        </span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 font-semibold text-slate-200">{{ log.event_type }}</td>
+                    <td class="p-4 text-emerald-400">{{ log.source_ip }}</td>
+                    <td class="p-4 text-slate-300 truncate max-w-md" title="{{ log.message }}">{{ log.message }}</td>
+                    <td class="p-4 text-center">
+                        <div class="flex items-center justify-center gap-3">
+                            {% if log.source_ip != 'Unknown' and log.source_ip != 'Localhost' and log.source_ip %}
+                            <form action="/block_ip" method="POST" onsubmit="return confirm('Are you sure you want to continuously block {{ log.source_ip }} natively on the agent?');">
+                                <input type="hidden" name="ip" value="{{ log.source_ip }}">
+                                <button type="submit" class="text-rose-500 hover:text-rose-400 transition" title="Block this IP on Agent">
+                                    <i class="fa-solid fa-ban text-lg"></i>
+                                </button>
+                            </form>
+                            {% endif %}
+                            <form action="/delete_log/{{ log.id }}" method="POST"
+                                onsubmit="return confirm('Are you sure you want to delete this log?');">
+                                <button type="submit" class="text-slate-500 hover:text-slate-400 transition"
+                                    title="Delete Log">
+                                    <i class="fa-solid fa-trash-can text-lg"></i>
+                                </button>
+                            </form>
+                        </div>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="p-8 text-center text-slate-400 italic">
+                        <i class="fa-solid fa-check-circle text-4xl mb-3 text-emerald-500 opacity-50 block"></i>
+                        No intrusion logs currently detected. System is secure.
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Pagination Controls -->
+    <div class="p-4 border-t border-white/10 flex justify-between items-center text-sm">
+        <span class="text-slate-400">Page {{ page }} of {{ total_pages }}</span>
+        <div class="flex gap-2">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}&severity={{ severity }}"
+                class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition text-white">Previous</a>
+            {% endif %}
+            {% if page < total_pages %} <a href="?page={{ page + 1 }}&severity={{ severity }}"
+                class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition text-white">Next</a>
+                {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+<script>
+    function filterTable(inputId, tableId) {
+        var input, filter, table, tr, i, j, td, txtValue;
+        input = document.getElementById(inputId);
+        filter = input.value.toUpperCase();
+        table = document.getElementById(tableId);
+        tr = table.getElementsByTagName("tr");
+
+        for (i = 1; i < tr.length; i++) {
+            tr[i].style.display = "none";
+            td = tr[i].getElementsByTagName("td");
+            for (j = 0; j < td.length; j++) {
+                if (td[j] && j < td.length - 1) { // Skip searching the action column
+                    txtValue = td[j].textContent || td[j].innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    function checkAgentSetup(totalLogs) {
+        if (totalLogs === 0) {
+            // If they have no logs, they probably haven't setup the agent yet
+            const userChoice = confirm("Wait!\n\nYou have not received any alerts yet, which means you likely haven't set up the IDS Agent.\n\nPlease go to Configuration Settings and complete the Agent setup on your target machine before starting monitoring.\n\nClick OK to go to Settings now, or Cancel to ignore this warning and start monitoring anyway.");
+            if (userChoice) {
+                window.location.href = "/settings";
+            } else {
+                document.getElementById('monitorForm').submit();
+            }
+        } else {
+            // They have logs, just submit the form normally
+            document.getElementById('monitorForm').submit();
+        }
+    }
+</script>
+{% endblock %}

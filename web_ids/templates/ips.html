@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-end">
+    <div>
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-rose-400 to-orange-400 mb-2">
+            IPS Actions Log</h1>
+        <p class="text-slate-400">View and manage automated Intrusion Prevention System (IPS) actions.</p>
+    </div>
+</div>
+
+{% if agent_setup %}
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+    <div class="glass p-6 rounded-2xl flex flex-col hover:bg-white/5 transition duration-300">
+        <h3 class="text-slate-200 text-lg font-bold mb-4"><i class="fa-solid fa-ban text-rose-500 mr-2"></i> Block IP Address</h3>
+        <form action="/block_ip" method="POST" class="flex gap-2">
+            <input type="text" name="ip" placeholder="e.g. 192.168.1.50" required class="flex-1 bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-rose-500">
+            <button type="submit" class="px-5 py-2 bg-rose-500/20 hover:bg-rose-500/40 text-rose-400 border border-rose-500/50 rounded-lg font-bold transition">Block</button>
+        </form>
+    </div>
+    <div class="glass p-6 rounded-2xl flex flex-col hover:bg-white/5 transition duration-300">
+        <h3 class="text-slate-200 text-lg font-bold mb-4"><i class="fa-solid fa-skull text-amber-500 mr-2"></i> Terminate Process</h3>
+        <form action="/kill_process" method="POST" class="flex gap-2">
+            <input type="number" name="pid" placeholder="e.g. 1234" required class="flex-1 bg-slate-900/50 border border-slate-600 rounded-lg px-4 py-2 text-white placeholder-slate-500 focus:outline-none focus:border-amber-500">
+            <button type="submit" class="px-5 py-2 bg-amber-500/20 hover:bg-amber-500/40 text-amber-500 border border-amber-500/50 rounded-lg font-bold transition">Kill PID</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+<div class="glass rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+    <div class="overflow-x-auto">
+        <table class="w-full text-left border-collapse" id="ipsTable">
+            <thead class="bg-slate-900 border-b border-white/10">
+                <tr class="text-slate-300 text-sm uppercase tracking-wider">
+                    <th class="p-4 font-medium">Time</th>
+                    <th class="p-4 font-medium">Action</th>
+                    <th class="p-4 font-medium">Target</th>
+                    <th class="p-4 font-medium">Details</th>
+                    <th class="p-4 font-medium text-center">Manage</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 font-mono text-sm">
+                {% if not agent_setup %}
+                <tr>
+                    <td colspan="5" class="p-16 text-center text-slate-400">
+                        <i class="fa-solid fa-server text-6xl mb-4 text-emerald-500/50 block"></i>
+                        <h2 class="text-xl font-bold text-white mb-2">Agent Not Configured</h2>
+                        <p class="text-sm mb-4">You have not set up the IDS Agent on a target machine yet.</p>
+                        <a href="/settings" class="inline-flex px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition items-center gap-2">
+                            <i class="fa-solid fa-gear"></i> Set Up Agent Now
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                {% for event in events %}
+                <tr class="hover:bg-white/5 transition duration-150">
+                    <td class="p-4 text-slate-400">{{ event.timestamp }}</td>
+                    <td class="p-4 text-rose-400 font-bold uppercase"><i class="fa-solid fa-shield-virus mr-1"></i> {{ event.action }}</td>
+                    <td class="p-4 text-emerald-400 font-semibold">{{ event.target }}</td>
+                    <td class="p-4 text-slate-300">{{ event.details }}</td>
+                    <td class="p-4 text-center">
+                        {% if 'Block' in event.action and event.target != 'Unknown' and 'Unblock' not in event.action %}
+                        <form action="/unblock_ip" method="POST" onsubmit="return confirm('Are you sure you want to send the unblock command for this target?');">
+                            <input type="hidden" name="ip" value="{{ event.target }}">
+                            <button type="submit" class="px-3 py-1 bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/40 rounded transition text-xs font-bold">
+                                UNBLOCK
+                            </button>
+                        </form>
+                        {% else %}
+                        <span class="text-slate-600">-</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5" class="p-8 text-center text-slate-400 italic">No IPS events recorded yet.</td>
+                </tr>
+                {% endfor %}
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

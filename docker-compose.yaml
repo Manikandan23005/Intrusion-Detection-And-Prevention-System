@@ -1,0 +1,19 @@
+services:
+  web-ids:
+    build:
+      context: ./web_ids
+      dockerfile: Dockerfile
+    # Uses host networking to apply iptables blocking natively and avoid port conflicts cleanly
+    network_mode: "host"
+    pid: "host"
+    privileged: true
+    environment:
+      - WATCH_DIR=/host_fs
+      - TZ=Asia/Kolkata
+    volumes:
+      - /var/log/journal:/var/log/journal:ro
+      - /var/log:/var/log:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - ./:/host_fs:ro
+      - ./web_ids:/app
+    restart: always

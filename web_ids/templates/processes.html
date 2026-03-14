@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="mb-8 flex justify-between items-end">
+    <div>
+        <h1 class="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-emerald-400 to-cyan-400 mb-2">
+            System Processes</h1>
+        <p class="text-slate-400">Live view of host system running processes for active monitoring.</p>
+    </div>
+    <div class="flex gap-4 items-center">
+        <form method="GET" action="/processes" class="flex gap-2">
+            <select name="filter" onchange="this.form.submit()"
+                class="block w-40 pl-3 pr-8 py-2 border border-slate-600 rounded-lg bg-slate-800/50 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition">
+                <option value="">All Processes</option>
+                <option value="high_cpu" {% if filter_type=='high_cpu' %}selected{% endif %}>High CPU (>5%)</option>
+                <option value="malicious" {% if filter_type=='malicious' %}selected{% endif %}>Malicious</option>
+            </select>
+        </form>
+        <div class="relative">
+            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <i class="fa-solid fa-search text-slate-500"></i>
+            </div>
+            <input type="text" id="procSearch" onkeyup="filterTable('procSearch', 'procTable')"
+                class="block w-64 pl-10 pr-3 py-2 border border-slate-600 rounded-lg bg-slate-800/50 text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition"
+                placeholder="Search processes...">
+        </div>
+        <button class="px-4 py-2 bg-indigo-600/30 hover:bg-indigo-500/50 text-indigo-300 rounded-lg transition"
+            onclick="window.location.reload()">
+            <i class="fa-solid fa-rotate-right mr-1"></i> Refresh
+        </button>
+    </div>
+</div>
+
+<div class="glass rounded-2xl overflow-hidden shadow-2xl shadow-black/50">
+    <div class="overflow-x-auto h-[600px] overflow-y-auto style-scrollbar">
+        <table class="w-full text-left border-collapse" id="procTable">
+            <thead class="sticky top-0 z-10 bg-slate-900 border-b border-white/10">
+                <tr class="text-slate-300 text-sm uppercase tracking-wider">
+                    <th class="p-4 font-medium">User</th>
+                    <th class="p-4 font-medium">Category</th>
+                    <th class="p-4 font-medium">PID</th>
+                    <th class="p-4 font-medium">%CPU</th>
+                    <th class="p-4 font-medium">%MEM</th>
+                    <th class="p-4 font-medium">Command</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-white/5 font-mono text-xs">
+                {% if not agent_setup %}
+                <tr>
+                    <td colspan="6" class="p-16 text-center text-slate-400">
+                        <i class="fa-solid fa-server text-6xl mb-4 text-emerald-500/50 block"></i>
+                        <h2 class="text-xl font-bold text-white mb-2">Agent Not Configured</h2>
+                        <p class="text-sm mb-4">You have not set up the IDS Agent on a target machine yet. Live system process telemetry is unavailable.</p>
+                        <a href="/settings" class="inline-flex px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg font-bold transition items-center gap-2">
+                            <i class="fa-solid fa-gear"></i> Set Up Agent Now
+                        </a>
+                    </td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="6" class="p-16 text-center text-slate-400">
+                        <i class="fa-solid fa-shield-halved text-6xl mb-4 text-indigo-500/50 block"></i>
+                        <h2 class="text-xl font-bold text-white mb-2">Agent is Active</h2>
+                        <p class="text-sm">Full process telemetry streaming is disabled to save network bandwidth.<br>Only <b>Malicious Processes</b> detected by the remote agent will be forwarded and logged on your Main Dashboard.</p>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+    <!-- Pagination Controls -->
+    <div class="p-4 border-t border-white/10 flex justify-between items-center text-sm">
+        <span class="text-slate-400">Page {{ page }} of {{ total_pages }}</span>
+        <div class="flex gap-2">
+            {% if page > 1 %}
+            <a href="?page={{ page - 1 }}&filter={{ filter_type }}"
+                class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition text-white">Previous</a>
+            {% endif %}
+            {% if page < total_pages %} <a href="?page={{ page + 1 }}&filter={{ filter_type }}"
+                class="px-3 py-1 bg-white/10 hover:bg-white/20 rounded transition text-white">Next</a>
+                {% endif %}
+        </div>
+    </div>
+</div>
+</div>
+<script>
+    function filterTable(inputId, tableId) {
+        var input, filter, table, tr, i, j, td, txtValue;
+        input = document.getElementById(inputId);
+        filter = input.value.toUpperCase();
+        table = document.getElementById(tableId);
+        tr = table.getElementsByTagName("tr");
+
+        for (i = 1; i < tr.length; i++) {
+            tr[i].style.display = "none";
+            td = tr[i].getElementsByTagName("td");
+            for (j = 0; j < td.length; j++) {
+                if (td[j]) {
+                    txtValue = td[j].textContent || td[j].innerText;
+                    if (txtValue.toUpperCase().indexOf(filter) > -1) {
+                        tr[i].style.display = "";
+                        break;
+                    }
+                }
+            }
+        }
+    }
+</script>
+{% endblock %}

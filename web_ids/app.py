@@ -1,0 +1,296 @@
+from flask import Flask, render_template, request, redirect, flash
+import threading
+import os
+import sys
+
+from functools import wraps
+from werkzeug.security import generate_password_hash, check_password_hash
+from flask import session, url_for
+
+from core.db import init_db, get_logs, set_setting, get_setting, create_user, get_user_by_username, delete_log, get_log_stats
+from core.monitor import IntrusionMonitor, AuthLogMonitor, ProcessMonitor
+from core.alert import send_email
+
+app = Flask(__name__)
+app.secret_key = "super_secret_ids_key"
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.after_request
+def add_header(r):
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    return r
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form.get("username")
+        password = request.form.get("password")
+        if create_user(username, generate_password_hash(password)):
+            flash("Account created! You can now log in.", "success")
+            return redirect(url_for("login"))
+        else:
+            flash("Username already exists.", "danger")
+    return render_template("register.html")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        user = get_user_by_username(request.form.get("username"))
+        if user and check_password_hash(user['password_hash'], request.form.get("password")):
+            session['user_id'] = user['id']
+            session['username'] = user['username']
+            flash("Logged in successfully.", "success")
+            return redirect(url_for("dashboard"))
+        flash("Invalid username or password.", "danger")
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    flash("Logged out successfully.", "info")
+    return redirect(url_for("login"))
+
+@app.route("/")
+@login_required
+def dashboard():
+    page = request.args.get('page', 1, type=int)
+    severity = request.args.get('severity', '')
+    limit = 10
+    offset = (page - 1) * limit
+    
+    user_id = session['user_id']
+    
+    logs, total_logs = get_logs(user_id=user_id, limit=limit, offset=offset, severity=severity if severity else None)
+    total_pages = (total_logs + limit - 1) // limit
+    if total_pages == 0:
+        total_pages = 1
+        
+    stats = get_log_stats(user_id=user_id)
+    monitoring_active = get_setting("monitoring_active", "true") == "true"
+        
+    return render_template("dashboard.html", logs=logs, page=page, total_pages=total_pages, severity=severity, total_logs=total_logs, stats=stats, monitoring_active=monitoring_active)
+
+@app.route("/toggle_monitoring", methods=["POST"])
+@login_required
+def toggle_monitoring():
+    current_state = get_setting("monitoring_active", "true")
+    new_state = "false" if current_state == "true" else "true"
+    set_setting("monitoring_active", new_state)
+    status_str = "started" if new_state == "true" else "stopped"
+    flash(f"IDS Monitoring has been {status_str}.", "info")
+    return redirect(url_for("dashboard"))
+
+@app.route("/delete_log/<int:log_id>", methods=["POST"])
+@login_required
+def delete_log_route(log_id):
+    delete_log(log_id)
+    flash(f"Log #{log_id} deleted successfully.", "success")
+    return redirect(url_for("dashboard"))
+
+@app.route("/settings", methods=["GET", "POST"])
+@login_required
+def settings():
+    if request.method == "POST":
+        email = request.form.get("notification_email")
+        smtp_email = request.form.get("smtp_email")
+        smtp_password = request.form.get("smtp_password")
+        
+        if email:
+            set_setting("notification_email", email.strip())
+            if smtp_email:
+                set_setting("smtp_email", smtp_email.strip())
+            if smtp_password:
+                # App Passwords often have spaces when copy-pasted from Google, so strip them!
+                cleaned_password = smtp_password.replace(" ", "")
+                set_setting("smtp_password", cleaned_password)
+                
+            flash("Settings updated successfully!", "success")
+        else:
+            flash("Notification email cannot be empty.", "warning")
+        return redirect("/settings")
+
+    current_email = get_setting("notification_email", "")
+    current_smtp_email = get_setting("smtp_email", "ids.detection.in007@gmail.com")
+    current_smtp_password = get_setting("smtp_password", "")
+    
+    from core.db import get_db
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT api_key FROM users WHERE id = ?", (session['user_id'],))
+    row = c.fetchone()
+    conn.close()
+    api_key = row['api_key'] if row else None
+
+    return render_template("settings.html", current_email=current_email, current_smtp_email=current_smtp_email, current_smtp_password=current_smtp_password, api_key=api_key)
+
+@app.route("/test_email", methods=["POST"])
+@login_required
+def test_email():
+    try:
+        from core.alert import send_email
+        send_email("IDS Setup Verification", "🎉 Success! Your email is perfectly configured and the IDS can now communicate with you.")
+        flash("System has dispatched a test email. Please check your inbox!", "success")
+    except Exception as e:
+        flash(f"Test email failed: {str(e)}", "danger")
+    return redirect(url_for("settings"))
+
+import subprocess
+from flask import send_file, jsonify
+from core.db import get_user_by_api_key
+
+@app.route('/download_agent')
+@login_required
+def download_agent():
+    # Make sure to create the downloads folder and ids_agent.py
+    path_to_agent = os.path.join(os.path.dirname(__file__), 'downloads', 'ids_agent.py')
+    if os.path.exists(path_to_agent):
+        return send_file(path_to_agent, as_attachment=True)
+    return "Agent file not found.", 404
+
+@app.route('/api/v1/alerts', methods=['POST'])
+def receive_alert():
+    data = request.json
+    api_key = data.get('api_key')
+    
+    if not api_key:
+        return jsonify({"status": "error", "message": "Missing API key"}), 400
+        
+    user = get_user_by_api_key(api_key)
+    if not user:
+        return jsonify({"status": "error", "message": "Invalid API key"}), 401
+    
+    event_type = data.get('alert_type', 'Unknown Event')
+    message = data.get('message', '')
+    severity = data.get('severity', 'low')
+    source_ip = data.get('ip_address', 'Unknown')
+    
+    # We log it to the database with the user_id attached
+    from core.db import add_log
+    add_log(event_type, source_ip, message, severity, user['id'])
+    
+    # You could also send email here if severity is high
+    if severity in ['medium', 'high'] and get_setting("monitoring_active", "true") == "true":
+        send_email(f"IDS Alert: {event_type}", f"Remote alert detected. IP: {source_ip} \\n Details: {message}")
+        
+    return jsonify({"status": "Alert Received"}), 201
+
+@app.route("/processes")
+@login_required
+def processes():
+    page = request.args.get('page', 1, type=int)
+    filter_type = request.args.get('filter', '')
+    limit = 10
+
+    user_id = session['user_id']
+    from core.db import get_logs
+    logs, total_logs = get_logs(user_id=user_id, limit=1, offset=0)
+    
+    agent_setup = total_logs > 0
+    paginated_processes = []
+    total_pages = 1
+
+    return render_template("processes.html", processes=paginated_processes, page=page, total_pages=total_pages, filter_type=filter_type, agent_setup=agent_setup)
+
+@app.route('/api/v1/ips_events', methods=['POST'])
+def receive_ips_event():
+    data = request.json
+    api_key = data.get('api_key')
+    user = get_user_by_api_key(api_key)
+    if not user: return jsonify({"status": "error"}), 401
+    from core.db import add_ips_event
+    add_ips_event(data.get('action'), data.get('target'), data.get('details'), user['id'])
+    return jsonify({"status": "Success"}), 201
+
+@app.route('/api/v1/commands', methods=['GET'])
+def get_commands():
+    api_key = request.args.get('api_key')
+    if not api_key: return jsonify({"status": "error"}), 400
+    user = get_user_by_api_key(api_key)
+    if not user: return jsonify({"status": "error"}), 401
+    from core.db import get_pending_commands
+    cmds = get_pending_commands(user['id'])
+    return jsonify({"commands": cmds}), 200
+
+@app.route('/api/v1/commands/<int:cmd_id>/complete', methods=['POST'])
+def complete_command(cmd_id):
+    data = request.json
+    api_key = data.get('api_key')
+    user = get_user_by_api_key(api_key)
+    if not user: return jsonify({"status": "error"}), 401
+    from core.db import complete_agent_command
+    complete_agent_command(cmd_id, user['id'])
+    return jsonify({"status": "Success"}), 200
+
+@app.route("/ips")
+@login_required
+def ips():
+    page = request.args.get('page', 1, type=int)
+    from core.db import get_ips_events, get_logs
+    logs, total_logs = get_logs(user_id=session['user_id'], limit=1, offset=0)
+    agent_setup = total_logs > 0
+    limit = 20
+    offset = (page - 1) * limit
+    events = get_ips_events(session['user_id'], limit=limit, offset=offset)
+    total_pages = 1
+    return render_template("ips.html", events=events, page=page, total_pages=total_pages, agent_setup=agent_setup)
+
+@app.route("/block_ip", methods=["POST"])
+@login_required
+def block_ip():
+    ip = request.form.get('ip')
+    if ip:
+        from core.db import add_agent_command
+        add_agent_command('block_ip', ip, session['user_id'])
+        flash(f"Block command sent for {ip}. It will be executed shortly by the agent.", "success")
+    return redirect(request.referrer or url_for('ips'))
+
+@app.route("/unblock_ip", methods=["POST"])
+@login_required
+def unblock_ip():
+    ip = request.form.get('ip')
+    if ip:
+        from core.db import add_agent_command
+        add_agent_command('unblock_ip', ip, session['user_id'])
+        flash(f"Unblock command sent for {ip}. It will be executed shortly by the agent.", "success")
+    return redirect(request.referrer or url_for('ips'))
+
+@app.route("/kill_process", methods=["POST"])
+@login_required
+def kill_process():
+    pid = request.form.get('pid')
+    if pid:
+        from core.db import add_agent_command
+        add_agent_command('kill_process', pid, session['user_id'])
+        flash(f"Kill command sent for process {pid}.", "success")
+    return redirect(request.referrer or url_for('ips'))
+def start_monitors():
+    print("[INIT] Starting background monitors...")
+    auth_monitor = AuthLogMonitor()
+    threading.Thread(target=auth_monitor.run, daemon=True).start()
+
+    proc_monitor = ProcessMonitor()
+    threading.Thread(target=proc_monitor.run, daemon=True).start()
+
+    # Montior Host root directory (mounted to /host_fs)
+    host_fs = os.environ.get('WATCH_DIR', '/app')
+    file_monitor = IntrusionMonitor(path=host_fs)
+    threading.Thread(target=file_monitor.run, daemon=True).start()
+
+if __name__ == "__main__":
+    # Initialize DB tables
+    init_db()
+
+    # Create downloads dir
+    os.makedirs(os.path.join(os.path.dirname(__file__), 'downloads'), exist_ok=True)
+
+    app.run(debug=True, host="0.0.0.0", port=9090)

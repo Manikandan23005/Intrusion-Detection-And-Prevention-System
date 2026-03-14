@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDS Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        .glass {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .dark-glass {
+            background: rgba(15, 23, 42, 0.7);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Animations */
+        @keyframes fadeUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        main {
+            animation: fadeUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+        .flash-msg {
+            animation: fadeUp 0.4s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+        }
+    </style>
+    <!-- Particles.js library -->
+    <script src="https://cdn.jsdelivr.net/npm/tsparticles-preset-stars@2/tsparticles.preset.stars.bundle.min.js"></script>
+</head>
+
+<body class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-900 text-slate-200 font-sans min-h-screen relative overflow-x-hidden">
+    <!-- Particle Background Container -->
+    <div id="tsparticles" class="fixed inset-0 z-0 pointer-events-none w-full h-full"></div>
+
+    <!-- Navbar -->
+    <nav class="dark-glass sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center gap-3">
+                    <i class="fa-solid fa-shield-halved text-emerald-400 text-2xl"></i>
+                    <span class="font-bold text-xl tracking-wider text-white">SecureShield <span
+                            class="text-emerald-400 font-normal">IDS</span></span>
+                </div>
+                <div class="flex gap-4">
+                    {% if session.get('user_id') %}
+                    <a href="/" class="px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line"></i> Dashboard
+                    </a>
+                    <a href="/processes"
+                        class="px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2 text-cyan-400">
+                        <i class="fa-solid fa-microchip"></i> System Processes
+                    </a>
+                    <a href="/ips"
+                        class="px-4 py-2 rounded-lg hover:bg-rose-500/20 text-rose-400 transition flex items-center gap-2">
+                        <i class="fa-solid fa-shield-virus"></i> IPS Actions
+                    </a>
+                    <a href="/settings"
+                        class="px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+                        <i class="fa-solid fa-gear"></i> Settings
+                    </a>
+                    <a href="/logout"
+                        class="px-4 py-2 rounded-lg hover:bg-red-500/20 text-rose-400 transition flex items-center gap-2">
+                        <i class="fa-solid fa-right-from-bracket"></i> Logout
+                    </a>
+                    {% else %}
+                    <a href="/login" class="px-4 py-2 rounded-lg hover:bg-white/10 transition flex items-center gap-2">
+                        <i class="fa-solid fa-right-to-bracket"></i> Login
+                    </a>
+                    <a href="/register"
+                        class="px-4 py-2 bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 rounded-lg hover:bg-emerald-500/40 transition flex items-center gap-2">
+                        <i class="fa-solid fa-user-plus"></i> Register
+                    </a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        {% for category, message in messages %}
+        <div
+            class="flash-msg mb-6 p-4 rounded-lg border {% if category == 'success' %}bg-emerald-500/20 border-emerald-500/50 text-emerald-200{% else %}bg-amber-500/20 border-amber-500/50 text-amber-200{% endif %} flex items-center gap-3 shadow-lg backdrop-blur-md">
+            <i class="fa-solid fa-circle-info"></i>
+            {{ message }}
+        </div>
+        {% endfor %}
+        {% endif %}
+        {% endwith %}
+
+        {% block content %}{% endblock %}
+    </main>
+
+    <script>
+    // Initialize standard Cyber/Star Particles Background
+    tsParticles.load("tsparticles", {
+      preset: "stars",
+      background: {
+        color: "transparent"
+      },
+      particles: {
+        number: { value: 60, density: { enable: true, value_area: 800 } },
+        color: { value: ["#34d399", "#2dd4bf", "#818cf8"] }, // Emerald, Teal, Indigo Mix
+        shape: { type: "circle" },
+        opacity: { value: 0.5, random: true },
+        size: { value: 3, random: true },
+        move: { enable: true, speed: 0.8, direction: "none", random: true, outModes: { default: "out" } }
+      },
+      interactivity: {
+        events: {
+          onHover: { enable: true, mode: "repulse" }
+        },
+        modes: { repulse: { distance: 100, duration: 0.4 } }
+      }
+    });
+
+    // Setup hover animations for all action buttons
+    document.querySelectorAll('button:not(.no-anim), a.bg-emerald-500\\/20, a.bg-indigo-600').forEach(el => {
+        el.addEventListener('mousedown', () => el.style.transform = 'scale(0.95)');
+        el.addEventListener('mouseup', () => el.style.transform = 'scale(1)');
+        el.addEventListener('mouseleave', () => el.style.transform = 'scale(1)');
+    });
+    </script>
+</body>
+
+</html>
