@@ -53,26 +53,26 @@ Expected outputs: data/processed/train.csv, data/processed/test.csv
 graph TD
     subgraph "Endpoints / Hosts (Run ids_agent.py)"
         Agent[IDS Agent Script]
-        Agent -- Monitors --> Files[File System \n /etc]
+        Agent -- Monitors --> Files[File System - /etc]
         Agent -- Monitors --> Procs[Running Processes]
-        Agent -- Monitors --> Auth[Auth Logs \n journalctl]
-        Agent -- Modifies --> IPS[Firewall / iptables \n IPS Action]
+        Agent -- Monitors --> Auth[Auth Logs - journalctl]
+        Agent -- Modifies --> IPS[Firewall / iptables]
     end
 
     subgraph "Central Server Node (Docker web-ids)"
         API[Flask REST API]
         DB[(SQLite ids.db)]
         WebUI[Dashboard UI]
-        Alerts[Email Dispatcher \n alert.py]
+        Alerts[Email Dispatcher - alert.py]
     end
     
     Admin((System Admin))
 
-    Agent -- "Telemetry & Alerts \n (HTTP POST)" --> API
-    API -- "Provides Commands \n (HTTP GET)" --> Agent
+    Agent -- "Telemetry & Alerts (HTTP POST)" --> API
+    API -- "Provides Commands (HTTP GET)" --> Agent
     
-    API <--> DB
-    WebUI <--> DB
+    API --- DB
+    WebUI --- DB
     DB -- "Provides Settings" --> Alerts
     
     API -- "High Severity Alert" --> Alerts
