@@ -69,11 +69,11 @@ graph TD
     Admin((System Admin))
 
     Agent -- "Telemetry & Alerts \n (HTTP POST)" --> API
-    Agent <-- "Polls for Commands \n (HTTP GET)" --> API
+    API -- "Provides Commands \n (HTTP GET)" --> Agent
     
     API <--> DB
     WebUI <--> DB
-    Alerts <-- "Reads Settings" -- DB
+    DB -- "Provides Settings" --> Alerts
     
     API -- "High Severity Alert" --> Alerts
     

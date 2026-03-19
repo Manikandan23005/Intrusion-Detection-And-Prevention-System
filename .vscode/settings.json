@@ -1,0 +1,7 @@
+{
+    "python.testing.pytestArgs": [
+        "web_ids"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
+}
