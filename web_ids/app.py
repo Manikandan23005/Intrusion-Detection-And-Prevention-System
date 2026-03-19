@@ -8,7 +8,6 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask import session, url_for
 
 from core.db import init_db, get_logs, set_setting, get_setting, create_user, get_user_by_username, delete_log, get_log_stats
-from core.monitor import IntrusionMonitor, AuthLogMonitor, ProcessMonitor
 from core.alert import send_email
 
 app = Flask(__name__)
@@ -273,18 +272,6 @@ def kill_process():
         add_agent_command('kill_process', pid, session['user_id'])
         flash(f"Kill command sent for process {pid}.", "success")
     return redirect(request.referrer or url_for('ips'))
-def start_monitors():
-    print("[INIT] Starting background monitors...")
-    auth_monitor = AuthLogMonitor()
-    threading.Thread(target=auth_monitor.run, daemon=True).start()
-
-    proc_monitor = ProcessMonitor()
-    threading.Thread(target=proc_monitor.run, daemon=True).start()
-
-    # Montior Host root directory (mounted to /host_fs)
-    host_fs = os.environ.get('WATCH_DIR', '/app')
-    file_monitor = IntrusionMonitor(path=host_fs)
-    threading.Thread(target=file_monitor.run, daemon=True).start()
 
 if __name__ == "__main__":
     # Initialize DB tables
