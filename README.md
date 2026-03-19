@@ -3,21 +3,14 @@
 ## Project Overview
 This repository implements an Intrusion Detection System (IDS) that detects malicious network activity from packet/flow data using supervised machine learning (or hybrid rule+ML). It supports training models from labeled datasets and running detection in batch or streaming modes.
 
-## Architecture & Components
-- Data ingestion: pcap/flow, CSV, or exported features (NetFlow/IPFIX, Zeek logs).
-- Preprocessing: feature extraction, normalization, categorical encoding, windowing for flows.
-- Model training: trains ML models (e.g., RandomForest, XGBoost, or neural networks) on prepared features.
-- Detection/Inference: runs model predictions on incoming data and produces alerts.
-- Evaluation: computes metrics (precision, recall, F1, ROC/AUC, confusion matrix).
-- Deployment: options for batch CLI, simple HTTP API, or real-time packet capture pipeline.
+## Core Architecture & Components
+This system relies on a central management dashboard and lightweight endpoint agents.
 
-Typical folder layout (example)
-- src/                — core code (preprocessing, training, infer)
-- data/               — raw and processed datasets
-- models/             — trained model artifacts
-- configs/            — experiment/config files
-- notebooks/          — EDA and experiments
-- utils/              — helpers (metrics, logging)
+- **Central Server (`web-ids/app.py`):** Acts as the core platform providing the web UI to administrative users. It listens for telemetry via REST API and stores data locally.
+- **SQLite Database (`ids.db`):** Local relational database storing registered users, alert records, and IDS commands.
+- **IDS Agent (`ids_agent.py`):** A standalone script installed across your Linux endpoints (including the server itself). It natively watches logs, files, and processes. It communicates directly with the Server via an API Key.
+- **Email Alert Dispatcher (`alert.py`):** Processes high-severity alerts stored in the database and dispatches HTML emails using SMTP to the registered administrator.
+- **Intrusion Prevention System (IPS):** The lightweight agent continuously polls the central dashboard to receive manual commands (e.g., Block IP using `iptables`, kill malicious processes via `kill -9`).
 
 ## Data & Recommended Datasets
 Use labeled network datasets such as:
@@ -52,6 +45,38 @@ Quick install:
 
 Expected outputs: data/processed/train.csv, data/processed/test.csv
 
-## Architecture
+## Distributed Architecture Diagram
 
+![IDS Architecture Diagram](architecture_diagram.png)
 
+```mermaid
+graph TD
+    subgraph "Endpoints / Hosts (Run ids_agent.py)"
+        Agent[IDS Agent Script]
+        Agent -- Monitors --> Files[File System \n /etc]
+        Agent -- Monitors --> Procs[Running Processes]
+        Agent -- Monitors --> Auth[Auth Logs \n journalctl]
+        Agent -- Modifies --> IPS[Firewall / iptables \n IPS Action]
+    end
+
+    subgraph "Central Server Node (Docker web-ids)"
+        API[Flask REST API]
+        DB[(SQLite ids.db)]
+        WebUI[Dashboard UI]
+        Alerts[Email Dispatcher \n alert.py]
+    end
+    
+    Admin((System Admin))
+
+    Agent -- "Telemetry & Alerts \n (HTTP POST)" --> API
+    Agent <-- "Polls for Commands \n (HTTP GET)" --> API
+    
+    API <--> DB
+    WebUI <--> DB
+    Alerts <-- "Reads Settings" -- DB
+    
+    API -- "High Severity Alert" --> Alerts
+    
+    Admin -- "Views & Manages" --> WebUI
+    Alerts -- "Sends Warnings" --> Admin
+```
