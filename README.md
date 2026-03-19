@@ -52,7 +52,6 @@ Quick install:
 
 Expected outputs: data/processed/train.csv, data/processed/test.csv
 
-## Training
-Train a model from
+## Architecture
 
 ![Project Preview](FlowChart.png)
