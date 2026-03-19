@@ -54,4 +54,4 @@ Expected outputs: data/processed/train.csv, data/processed/test.csv
 
 ## Architecture
 
-![Project Preview](FlowChart.png)
+
