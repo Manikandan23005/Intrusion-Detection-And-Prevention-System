@@ -11,7 +11,7 @@ except ImportError:
     print("Please install watchdog: pip install watchdog")
     exit(1)
 
-# API endpoint and API key
+
 SERVER_URL = ""
 API_KEY = ""
 
@@ -30,7 +30,7 @@ def trigger_alert(alert_type, ip_address, message, severity):
     }
     
     try:
-        # Send data to the cloud
+
         response = requests.post(cloud_url, json=payload, timeout=10)
         if response.status_code == 201:
             print(f"[OK] Alert sent to cloud: {alert_type} - {message}")
@@ -183,7 +183,7 @@ class AuthLogMonitor:
                     return
 
             if AuthLogMonitor.f_count > 3 and ip:
-                block_ip(ip, 60) # Block for 60 seconds locally
+                block_ip(ip, 60)
             
             trigger_alert("Login Failed", ip if ip else "Unknown", msg, "high")
             return
@@ -218,11 +218,11 @@ class ProcessMonitor:
                     if len(parts) == 3:
                         pid, user, comm = parts
                         for keyword in self.malicious_keywords:
-                            if keyword in comm.lower() and pid not in self.reported:
+                            if re.search(rf'\b{keyword}\b', comm.lower()) and pid not in self.reported:
                                 trigger_alert("Malicious Process Detected", "Localhost", f"Suspicious process running: {comm} (PID: {pid}, User: {user})", "high")
                                 self.reported.add(pid)
                                 
-                                # Auto-kill as part of IPS
+
                                 print(f"[IPS] Killing malicious process {comm} (PID: {pid})")
                                 cmd_kill = ["kill", "-9", pid]
                                 if subprocess.run(["which", "sudo"], capture_output=True).returncode == 0:

@@ -42,12 +42,13 @@
                     <th class="p-4 font-medium">%CPU</th>
                     <th class="p-4 font-medium">%MEM</th>
                     <th class="p-4 font-medium">Command</th>
+                    <th class="p-4 font-medium text-right">Action</th>
                 </tr>
             </thead>
             <tbody class="divide-y divide-white/5 font-mono text-xs">
-                {% if not agent_setup %}
+                {% if not agent_setup and not processes %}
                 <tr>
-                    <td colspan="6" class="p-16 text-center text-slate-400">
+                    <td colspan="7" class="p-16 text-center text-slate-400">
                         <i class="fa-solid fa-server text-6xl mb-4 text-emerald-500/50 block"></i>
                         <h2 class="text-xl font-bold text-white mb-2">Agent Not Configured</h2>
                         <p class="text-sm mb-4">You have not set up the IDS Agent on a target machine yet. Live system process telemetry is unavailable.</p>
@@ -56,14 +57,39 @@
                         </a>
                     </td>
                 </tr>
-                {% else %}
+                {% elif processes|length == 0 %}
                 <tr>
-                    <td colspan="6" class="p-16 text-center text-slate-400">
-                        <i class="fa-solid fa-shield-halved text-6xl mb-4 text-indigo-500/50 block"></i>
-                        <h2 class="text-xl font-bold text-white mb-2">Agent is Active</h2>
-                        <p class="text-sm">Full process telemetry streaming is disabled to save network bandwidth.<br>Only <b>Malicious Processes</b> detected by the remote agent will be forwarded and logged on your Main Dashboard.</p>
+                    <td colspan="7" class="p-16 text-center text-slate-400">
+                        <i class="fa-solid fa-layer-group text-6xl mb-4 text-slate-600 block"></i>
+                        <h2 class="text-xl font-bold text-white mb-2">No Processes Found</h2>
+                        <p class="text-sm">No processes match the current filter criteria.</p>
                     </td>
                 </tr>
+                {% else %}
+                {% for proc in processes %}
+                <tr class="hover:bg-slate-800/50 transition border-t border-white/5">
+                    <td class="p-4 flex items-center gap-2">
+                        <i class="fa-solid fa-user-ghost text-slate-500"></i> {{ proc.user }}
+                    </td>
+                    <td class="p-4">
+                        {% if proc.category == 'Malicious' %}
+                        <span class="px-2 py-1 bg-red-500/20 text-red-400 text-xs rounded border border-red-500/30 font-bold">Malicious</span>
+                        {% else %}
+                        <span class="px-2 py-1 bg-slate-700 text-slate-300 text-xs rounded border border-slate-600">System</span>
+                        {% endif %}
+                    </td>
+                    <td class="p-4 text-emerald-400">{{ proc.pid }}</td>
+                    <td class="p-4 {% if proc.pcpu > 5.0 %}text-amber-400 font-bold{% endif %}">{{ proc.pcpu }}%</td>
+                    <td class="p-4">{{ proc.pmem }}%</td>
+                    <td class="p-4 text-slate-300">{{ proc.comm }}</td>
+                    <td class="p-4 text-right">
+                        <form action="/kill_process" method="POST" onsubmit="return confirm('Are you sure you want to kill PID {{ proc.pid }}?');">
+                            <input type="hidden" name="pid" value="{{ proc.pid }}">
+                            <button type="submit" class="px-3 py-1 bg-red-500/10 hover:bg-red-500/30 border border-red-500/30 text-red-400 rounded transition" title="Kill Process"><i class="fa-solid fa-skull"></i> Kill</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
                 {% endif %}
             </tbody>
         </table>

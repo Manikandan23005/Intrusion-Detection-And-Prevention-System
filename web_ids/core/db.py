@@ -14,7 +14,7 @@ def init_db():
     conn = get_db()
     c = conn.cursor()
     
-    # Users table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS users (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -24,7 +24,7 @@ def init_db():
     )
     """)
     
-    # Logs table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS logs (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +37,7 @@ def init_db():
     )
     """)
     
-    # Settings table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
@@ -45,7 +45,7 @@ def init_db():
     )
     """)
     
-    # IPS Events table
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS ips_events (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,7 +57,7 @@ def init_db():
     )
     """)
     
-    # Agent Commands table (for unblocking IPs etc)
+
     c.execute("""
     CREATE TABLE IF NOT EXISTS agent_commands (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,17 +69,17 @@ def init_db():
     )
     """)
     
-    # Migrate existing logs table to add user_id column if it doesn't exist
+
     try:
         c.execute("ALTER TABLE logs ADD COLUMN user_id INTEGER NULL")
     except sqlite3.OperationalError:
-        pass  # Column already exists
+        pass
         
-    # Migrate existing users table to add api_key column if it doesn't exist
+
     try:
         c.execute("ALTER TABLE users ADD COLUMN api_key TEXT")
     except sqlite3.OperationalError:
-        pass  # Column already exists
+        pass
         
     conn.commit()
     conn.close()

@@ -109,7 +109,7 @@ def settings():
             if smtp_email:
                 set_setting("smtp_email", smtp_email.strip())
             if smtp_password:
-                # App Passwords often have spaces when copy-pasted from Google, so strip them!
+
                 cleaned_password = smtp_password.replace(" ", "")
                 set_setting("smtp_password", cleaned_password)
                 
@@ -150,7 +150,7 @@ from core.db import get_user_by_api_key
 @app.route('/download_agent')
 @login_required
 def download_agent():
-    # Make sure to create the downloads folder and ids_agent.py
+
     path_to_agent = os.path.join(os.path.dirname(__file__), 'downloads', 'ids_agent.py')
     if os.path.exists(path_to_agent):
         return send_file(path_to_agent, as_attachment=True)
@@ -173,11 +173,11 @@ def receive_alert():
     severity = data.get('severity', 'low')
     source_ip = data.get('ip_address', 'Unknown')
     
-    # We log it to the database with the user_id attached
+
     from core.db import add_log
     add_log(event_type, source_ip, message, severity, user['id'])
     
-    # You could also send email here if severity is high
+
     if severity in ['medium', 'high'] and get_setting("monitoring_active", "true") == "true":
         send_email(f"IDS Alert: {event_type}", f"Remote alert detected. IP: {source_ip} \\n Details: {message}")
         
@@ -193,10 +193,56 @@ def processes():
     user_id = session['user_id']
     from core.db import get_logs
     logs, total_logs = get_logs(user_id=user_id, limit=1, offset=0)
-    
     agent_setup = total_logs > 0
-    paginated_processes = []
-    total_pages = 1
+
+    import subprocess
+    import re
+    malicious_keywords = ['nmap', 'nc', 'netcat', 'hydra', 'sqlmap', 'john', 'metasploit', 'xmrig', 'cgminer']
+    
+    try:
+        result = subprocess.run(["ps", "-eo", "user,pid,pcpu,pmem,comm", "--sort=-pcpu"], capture_output=True, text=True)
+        lines = result.stdout.strip().split('\n')[1:] 
+        
+        all_processes = []
+        for line in lines:
+            parts = line.split(None, 4)
+            if len(parts) == 5:
+                user, pid, pcpu, pmem, comm = parts
+                
+                is_malicious = False
+                for keyword in malicious_keywords:
+                    if re.search(rf'\b{keyword}\b', comm.lower()):
+                        is_malicious = True
+                        break
+                        
+                category = "Malicious" if is_malicious else "System"
+                
+                all_processes.append({
+                    'user': user,
+                    'category': category,
+                    'pid': pid,
+                    'pcpu': float(pcpu),
+                    'pmem': float(pmem),
+                    'comm': comm
+                })
+    except Exception as e:
+        all_processes = []
+
+    filtered_processes = []
+    for p in all_processes:
+        if filter_type == 'high_cpu' and p['pcpu'] < 5.0:
+            continue
+        if filter_type == 'malicious' and p['category'] != 'Malicious':
+            continue
+        filtered_processes.append(p)
+
+    total_logs_processes = len(filtered_processes)
+    total_pages = (total_logs_processes + limit - 1) // limit
+    if total_pages == 0:
+        total_pages = 1
+
+    offset = (page - 1) * limit
+    paginated_processes = filtered_processes[offset:offset + limit]
 
     return render_template("processes.html", processes=paginated_processes, page=page, total_pages=total_pages, filter_type=filter_type, agent_setup=agent_setup)
 
@@ -274,10 +320,10 @@ def kill_process():
     return redirect(request.referrer or url_for('ips'))
 
 if __name__ == "__main__":
-    # Initialize DB tables
+
     init_db()
 
-    # Create downloads dir
+
     os.makedirs(os.path.join(os.path.dirname(__file__), 'downloads'), exist_ok=True)
 
     app.run(debug=True, host="0.0.0.0", port=9090)
