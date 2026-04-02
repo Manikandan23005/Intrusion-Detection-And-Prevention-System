@@ -114,6 +114,14 @@ def get_user_by_api_key(api_key):
     conn.close()
     return dict(row) if row else None
 
+def get_user_by_id(user_id):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    conn.close()
+    return dict(row) if row else None
+
 def add_log(event_type, source_ip, message, severity, user_id=None):
     conn = get_db()
     c = conn.cursor()

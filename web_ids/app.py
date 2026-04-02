@@ -3,24 +3,34 @@ import threading
 import os
 import sys
 
-from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
-from flask import session, url_for
+from flask import url_for
+from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 
-from core.db import init_db, get_logs, set_setting, get_setting, create_user, get_user_by_username, delete_log, get_log_stats
+from core.db import init_db, get_logs, set_setting, get_setting, create_user, get_user_by_username, delete_log, get_log_stats, get_user_by_id
 from core.alert import send_email
 
 app = Flask(__name__)
 app.secret_key = "super_secret_ids_key"
 app.config['TEMPLATES_AUTO_RELOAD'] = True
 
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if 'user_id' not in session:
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+login_manager.login_message_category = 'danger'
+
+class User(UserMixin):
+    def __init__(self, user_data):
+        self.id = str(user_data['id'])
+        self.username = user_data['username']
+        self.api_key = user_data.get('api_key')
+
+@login_manager.user_loader
+def load_user(user_id):
+    user_data = get_user_by_id(int(user_id))
+    if user_data:
+        return User(user_data)
+    return None
 
 @app.after_request
 def add_header(r):
@@ -46,16 +56,16 @@ def login():
     if request.method == "POST":
         user = get_user_by_username(request.form.get("username"))
         if user and check_password_hash(user['password_hash'], request.form.get("password")):
-            session['user_id'] = user['id']
-            session['username'] = user['username']
+            login_user(User(user))
             flash("Logged in successfully.", "success")
             return redirect(url_for("dashboard"))
         flash("Invalid username or password.", "danger")
     return render_template("login.html")
 
 @app.route("/logout")
+@login_required
 def logout():
-    session.clear()
+    logout_user()
     flash("Logged out successfully.", "info")
     return redirect(url_for("login"))
 
@@ -67,7 +77,7 @@ def dashboard():
     limit = 10
     offset = (page - 1) * limit
     
-    user_id = session['user_id']
+    user_id = current_user.id
     
     logs, total_logs = get_logs(user_id=user_id, limit=limit, offset=offset, severity=severity if severity else None)
     total_pages = (total_logs + limit - 1) // limit
@@ -125,7 +135,7 @@ def settings():
     from core.db import get_db
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT api_key FROM users WHERE id = ?", (session['user_id'],))
+    c.execute("SELECT api_key FROM users WHERE id = ?", (current_user.id,))
     row = c.fetchone()
     conn.close()
     api_key = row['api_key'] if row else None
@@ -190,7 +200,7 @@ def processes():
     filter_type = request.args.get('filter', '')
     limit = 10
 
-    user_id = session['user_id']
+    user_id = current_user.id
     from core.db import get_logs
     logs, total_logs = get_logs(user_id=user_id, limit=1, offset=0)
     agent_setup = total_logs > 0
@@ -281,11 +291,11 @@ def complete_command(cmd_id):
 def ips():
     page = request.args.get('page', 1, type=int)
     from core.db import get_ips_events, get_logs
-    logs, total_logs = get_logs(user_id=session['user_id'], limit=1, offset=0)
+    logs, total_logs = get_logs(user_id=current_user.id, limit=1, offset=0)
     agent_setup = total_logs > 0
     limit = 20
     offset = (page - 1) * limit
-    events = get_ips_events(session['user_id'], limit=limit, offset=offset)
+    events = get_ips_events(current_user.id, limit=limit, offset=offset)
     total_pages = 1
     return render_template("ips.html", events=events, page=page, total_pages=total_pages, agent_setup=agent_setup)
 
@@ -295,7 +305,7 @@ def block_ip():
     ip = request.form.get('ip')
     if ip:
         from core.db import add_agent_command
-        add_agent_command('block_ip', ip, session['user_id'])
+        add_agent_command('block_ip', ip, current_user.id)
         flash(f"Block command sent for {ip}. It will be executed shortly by the agent.", "success")
     return redirect(request.referrer or url_for('ips'))
 
@@ -305,7 +315,7 @@ def unblock_ip():
     ip = request.form.get('ip')
     if ip:
         from core.db import add_agent_command
-        add_agent_command('unblock_ip', ip, session['user_id'])
+        add_agent_command('unblock_ip', ip, current_user.id)
         flash(f"Unblock command sent for {ip}. It will be executed shortly by the agent.", "success")
     return redirect(request.referrer or url_for('ips'))
 
@@ -315,7 +325,7 @@ def kill_process():
     pid = request.form.get('pid')
     if pid:
         from core.db import add_agent_command
-        add_agent_command('kill_process', pid, session['user_id'])
+        add_agent_command('kill_process', pid, current_user.id)
         flash(f"Kill command sent for process {pid}.", "success")
     return redirect(request.referrer or url_for('ips'))
 
