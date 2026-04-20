@@ -183,14 +183,13 @@ def receive_alert():
     severity = data.get('severity', 'low')
     source_ip = data.get('ip_address', 'Unknown')
     
+    if get_setting("monitoring_active", "true") == "true":
+        from core.db import add_log
+        add_log(event_type, source_ip, message, severity, user['id'])
 
-    from core.db import add_log
-    add_log(event_type, source_ip, message, severity, user['id'])
-    
+        if severity in ['medium', 'high']:
+            send_email(f"IDS Alert: {event_type}", f"Remote alert detected. IP: {source_ip} \\n Details: {message}")
 
-    if severity in ['medium', 'high'] and get_setting("monitoring_active", "true") == "true":
-        send_email(f"IDS Alert: {event_type}", f"Remote alert detected. IP: {source_ip} \\n Details: {message}")
-        
     return jsonify({"status": "Alert Received"}), 201
 
 @app.route("/processes")
@@ -262,8 +261,9 @@ def receive_ips_event():
     api_key = data.get('api_key')
     user = get_user_by_api_key(api_key)
     if not user: return jsonify({"status": "error"}), 401
-    from core.db import add_ips_event
-    add_ips_event(data.get('action'), data.get('target'), data.get('details'), user['id'])
+    if get_setting("monitoring_active", "true") == "true":
+        from core.db import add_ips_event
+        add_ips_event(data.get('action'), data.get('target'), data.get('details'), user['id'])
     return jsonify({"status": "Success"}), 201
 
 @app.route('/api/v1/commands', methods=['GET'])
