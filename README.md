@@ -1,7 +1,8 @@
 # Intrusion Detection System — Detailed Explanation and Run Guide
 
 ## Project Overview
-This repository implements an Intrusion Detection System (IDS) that detects malicious network activity from packet/flow data using supervised machine learning (or hybrid rule+ML). It supports training models from labeled datasets and running detection in batch or streaming modes.
+This repository implements an Intrusion Detection System (IDS)  have threat detection modules for file integrity, authentication logs, and malicious processes using Linux system tools and
+custom logic.
 
 ## Core Architecture & Components
 This system relies on a central management dashboard and lightweight endpoint agents.
